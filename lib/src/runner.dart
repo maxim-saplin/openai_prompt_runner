@@ -225,14 +225,14 @@ class PromptRunner {
   }
 
   /// This is essentialy an ID of the run as well as date/time of run creation
-  final DateTime promptRunAt = DateTime.now();
+  final DateTime runStartedAt = DateTime.now();
 
   var _currentLogFilePath = '';
   var _currentRunLogDirectory = '';
 
   void logPrint(String message) {
     if (_currentLogFilePath.isEmpty) {
-      _currentRunLogDirectory = '$logsDirectory/$promptRunAt';
+      _currentRunLogDirectory = '$logsDirectory/$runStartedAt';
       var file = File('$_currentRunLogDirectory/_log');
       if (!file.existsSync()) {
         file.createSync(recursive: true);
