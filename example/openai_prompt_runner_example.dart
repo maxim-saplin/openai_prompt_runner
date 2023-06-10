@@ -9,7 +9,7 @@ void main() async {
       apiUri: getAzueOpenAiUri('openai.azure.com', 'gpt3'),
       apiKeys: UnmodifiableListView(['key1', 'key2']),
       breakOnError: false,
-      onApiErrorRetries: 5,
+      apiErrorRetries: 5,
       totalIterations: 10,
       startAtIteration: 0);
   await runner.run();
@@ -28,5 +28,5 @@ Prompt prepareAndSendPrompt(int iteration, DateTime promtStartedAt,
   }, onError: (e) {
     runner.logPrint(e);
   });
-  return Prompt(role: role, prompt: prompt);
+  return Prompt(systemMessage: role, prompt: prompt);
 }

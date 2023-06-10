@@ -49,7 +49,7 @@ class PromptRunner {
       required this.apiUri,
       required this.apiKeys,
       required this.breakOnError,
-      required this.onApiErrorRetries,
+      required this.apiErrorRetries,
       required totalIterations,
       required this.startAtIteration,
       this.stopAtIteration,
@@ -67,7 +67,7 @@ class PromptRunner {
   final int parallelWorkers;
   final UnmodifiableListView<String> apiKeys;
   final bool breakOnError;
-  final int onApiErrorRetries;
+  final int apiErrorRetries;
   final int totalIterations;
   final int startAtIteration;
   final int? stopAtIteration;
@@ -134,7 +134,7 @@ class PromptRunner {
     var prompt = prepareAndSendPrompt(
         curIteration, promtStartedAt, promptCompleter.future, this);
 
-    var retriesLeft = onApiErrorRetries;
+    var retriesLeft = apiErrorRetries;
 
     var logFileName = prompt.tag ?? promtStartedAt.toIso8601String();
 
@@ -142,6 +142,10 @@ class PromptRunner {
       try {
         var value = await _openAICall(prompt, promtStartedAt, logFileName);
         _logPrompt(false, logFileName, value.rawResponse);
+        if (storage != null) {
+          storage!.updatePromptSuccess(runStartedAt, promtStartedAt,
+              value.promptTokens, value.totalTokens, value.rawResponse);
+        }
         if (_runCompleter.isCompleted) {
           return;
         }
@@ -155,6 +159,10 @@ class PromptRunner {
       } catch (e) {
         _errorsHappened = true;
         _logPrompt(false, logFileName, e.toString());
+        if (storage != null) {
+          storage!.updatePromptError(runStartedAt, promtStartedAt, e.toString(),
+              apiErrorRetries - retriesLeft);
+        }
         if (_runCompleter.isCompleted) {
           return;
         }
@@ -196,7 +204,7 @@ class PromptRunner {
       'top_p': prompt.topp,
       'max_tokens': prompt.maxTokens,
       'messages': [
-        {'role': 'system', 'content': prompt.role},
+        {'role': 'system', 'content': prompt.systemMessage},
         {'role': 'user', 'content': prompt.prompt},
       ],
     });
@@ -287,7 +295,7 @@ class PromptRunner {
 
 /// Prompt as prapred by [PromptRunner.prepareAndSendPrompt] callback
 class Prompt {
-  final String role;
+  final String systemMessage;
   final String prompt;
   final double temperature;
   final double topp;
@@ -299,7 +307,7 @@ class Prompt {
   final String? tag;
 
   const Prompt(
-      {required this.role,
+      {required this.systemMessage,
       required this.prompt,
       this.temperature = 0.7,
       this.topp = 1.0,
@@ -335,4 +343,31 @@ Map<String, String> getPairsFromPrompt(String result) {
   }
 
   return pairs;
+}
+
+//TODO, make int and fixed point math
+class CostCounter {
+  /// $ per 1000 tokens
+  final double promptCost;
+
+  /// $ per 1000 tokens
+  final double completionCost;
+
+  CostCounter(this.promptCost, this.completionCost);
+
+  int _promptTokens = 0;
+  int _completionTokens = 0;
+
+  int get promptTokens => _promptTokens;
+  int get completionTokens => _completionTokens;
+  int get totalTokens => _completionTokens + promptTokens;
+
+  void add(int promptTokens, int totalTokens) {
+    _promptTokens += promptTokens;
+    _completionTokens += totalTokens - promptTokens;
+  }
+
+  double get totalCost =>
+      _promptTokens / 1000 * promptCost +
+      _completionTokens / 1000 * completionCost;
 }

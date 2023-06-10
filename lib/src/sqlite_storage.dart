@@ -6,7 +6,7 @@ CREATE TABLE
   prompts (
     run_started_at DATETIME not null default CURRENT_TIMESTAMP,
     prompt_sent_at DATETIME not null,
-    prompt_updated_at DATETIME not null,
+    updated_at DATETIME not null,
     run_tag TEXT null,
     tag TEXT null,
     status TEXT not null,
@@ -97,10 +97,11 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? runTag, String? tag, String? request) {
     _wrapDbCall((db) {
       db.execute(
-          "INSERT INTO prompts_scoring (run_started_at, prompt_sent_at, runTag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?)",
+          "INSERT INTO prompts_scoring (run_started_at, prompt_sent_at, updated_at, runTag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [
             runStartedAt.toIso8601String(),
             promtStartedAt.toIso8601String(),
+            DateTime.now().toIso8601String(),
             runTag,
             tag,
             'SENT',
@@ -114,8 +115,9 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       int promptTokens, int totalTokens, String? response) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts_scoring SET status = ?, prompt_tokens= ?, total_tokens = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts_scoring SET updated_at = ?, status = ?, prompt_tokens = ?, total_tokens = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
           [
+            DateTime.now().toIso8601String(),
             'SUCCESS',
             promptTokens,
             totalTokens,
@@ -131,10 +133,12 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? response, int retriesDone) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts_scoring SET status = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts_scoring SET updated_at = ?, status = ?, response = ?, retries = ? WHERE run_started_at = ?, prompt_sent_at = ?",
           [
+            DateTime.now().toIso8601String(),
             'ERROR',
             response,
+            retriesDone,
             runStartedAt.toIso8601String(),
             promtStartedAt.toIso8601String()
           ]);

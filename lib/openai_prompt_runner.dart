@@ -2,3 +2,5 @@
 library;
 
 export 'src/runner.dart';
+export 'src/storage.dart';
+export 'src/sqlite_storage.dart';
