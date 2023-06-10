@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
-/// Directory where all logs created by prompt runners will be saved
-String logsDirectory = 'logs';
+/// Http requests timeouts (client side)
+Duration httpTimeout = Duration(seconds: 15);
 
 /// Return role and prompt text
 typedef PrepareAndSendPrompt = Prompt Function(
@@ -20,20 +20,35 @@ Uri getAzueOpenAiUri(String endpoint, String deployment) {
 }
 
 /// Schedules the given number of prompts, runs them in parallel and can use/rotate multiple API keys
-/// Each prompt iteration has three states: SENT, SUCEESS, ERROR -> each has a callback
+/// Each prompt iteration has three states: SENT, SUCEESS, ERROR
+/// - SENT - prompt received from prepareAndSendPrompt and HTTP request is sent
+/// - SUCCESS - API endpoint successfuly returns completion
+/// - ERROR - netwrok error, server side issues (e.g. timeouts or throttling)
+///
+/// The class provides logging functionality, all runs get a directory under [logsDirectory]
+/// (created when calling [run] method) which is named as DateTime of run start.
+/// Calling [logPrint] mirrors console output to '_log' file in the run's directory.
+/// [logWithPromptStats] is usefule in [prepareAndSendPrompt] and can be used to log
+/// certain message with the addition of propmpt metadata, such as number of tokens or
+/// timings, e.g. here's an example outout that gets added to the message:
+/// ```
+/// tokens (1407|1737), elapsed 0m0s, propmpts complete 20/972, avg sec/prompt 2.0 remaining 31.7m
+/// ```
+/// Additionally each prompt's request and response HTTP body is saved to run's log directoruy (file is named as DateTime of prompt creation)
 class PromptRunner {
   /// A class for running an OpenAI prompt.
-  PromptRunner({
-    required this.prepareAndSendPrompt,
-    required this.parallelWorkers,
-    required this.apiUri,
-    required this.apiKeys,
-    required this.breakOnError,
-    required this.onApiErrorRetries,
-    required totalIterations,
-    required this.startAtIteration,
-    this.stopAtIteration,
-  }) : totalIterations = stopAtIteration ?? totalIterations {
+  PromptRunner(
+      {required this.prepareAndSendPrompt,
+      required this.parallelWorkers,
+      required this.apiUri,
+      required this.apiKeys,
+      required this.breakOnError,
+      required this.onApiErrorRetries,
+      required totalIterations,
+      required this.startAtIteration,
+      this.stopAtIteration,
+      this.logsDirectory = 'logs'})
+      : totalIterations = stopAtIteration ?? totalIterations {
     if (apiKeys.isEmpty) {
       throw 'No API keys provided';
     }
@@ -57,6 +72,9 @@ class PromptRunner {
   final _sw = Stopwatch();
   bool _errorsHappened = false;
   final Uri apiUri;
+
+  /// Directory where all logs created by prompt runners will be saved
+  final String logsDirectory;
 
   Duration get elapsed => _sw.elapsed;
 
@@ -108,9 +126,12 @@ class PromptRunner {
 
     var retriesLeft = onApiErrorRetries;
 
+    var logFileName = prompt.tag ?? promtStartedAt.toIso8601String();
+
     while (retriesLeft > 0) {
       try {
-        var value = await _openAICall(prompt);
+        var value = await _openAICall(prompt, logFileName);
+        _logPrompt(false, logFileName, value.rawResponse);
         if (_runCompleter.isCompleted) {
           return;
         }
@@ -123,6 +144,7 @@ class PromptRunner {
         scheduleMorePromptsInParallel();
       } catch (e) {
         _errorsHappened = true;
+        _logPrompt(false, logFileName, e.toString());
         if (_runCompleter.isCompleted) {
           return;
         }
@@ -157,24 +179,29 @@ class PromptRunner {
 
   String getAPIKey() => apiKeys[_currentIteration % apiKeys.length];
 
-  Future<PromptResult> _openAICall(Prompt prompt) async {
-    // TODO, add timeouts on the client side
-    final response = await http.post(
-      apiUri,
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': getAPIKey(),
-      },
-      body: jsonEncode({
-        'temperature': prompt.temperature,
-        'top_p': prompt.topp,
-        'max_tokens': prompt.maxTokens,
-        'messages': [
-          {'role': 'system', 'content': prompt.role},
-          {'role': 'user', 'content': prompt.prompt},
-        ],
-      }),
-    );
+  Future<PromptResult> _openAICall(Prompt prompt, String logFileName) async {
+    var body = jsonEncode({
+      'temperature': prompt.temperature,
+      'top_p': prompt.topp,
+      'max_tokens': prompt.maxTokens,
+      'messages': [
+        {'role': 'system', 'content': prompt.role},
+        {'role': 'user', 'content': prompt.prompt},
+      ],
+    });
+
+    _logPrompt(true, logFileName, body);
+
+    final response = await http
+        .post(
+          apiUri,
+          headers: {
+            'Content-Type': 'application/json',
+            'api-key': getAPIKey(),
+          },
+          body: body,
+        )
+        .timeout(httpTimeout);
 
     final String rawResponse = response.body;
     final data = jsonDecode(rawResponse);
@@ -218,13 +245,21 @@ class PromptRunner {
     print(message);
   }
 
-  void logPrompt(String tag, String rawBody) {
-    var currentLogFilePath = '$_currentRunLogDirectory/$tag';
+  /// Logs prompt http request/response body to file
+  void _logPrompt(bool request, String fileName, String rawBody) {
+    var currentLogFilePath = '$_currentRunLogDirectory/$fileName';
 
+    if (request) {
+      File(currentLogFilePath)
+          .writeAsStringSync('|REQUEST|\n', mode: FileMode.append);
+    } else {
+      File(currentLogFilePath)
+          .writeAsStringSync('|RESPONSE|\n', mode: FileMode.append);
+    }
     File(currentLogFilePath).writeAsStringSync(rawBody, mode: FileMode.append);
   }
 
-  /// Helper method adding propmpt completion general stats and run timmings
+  /// Helper method adding propmpt completion general stats (tokens sent and total, timinggs)
   void logWithPromptStats(String message, PromptResult result) {
     var secPerPropmt = (elapsed.inSeconds / (completeCounter));
 
@@ -235,6 +270,7 @@ class PromptRunner {
   }
 }
 
+/// Prompt as prapred by [PromptRunner.prepareAndSendPrompt] callback
 class Prompt {
   final String role;
   final String prompt;
@@ -242,13 +278,18 @@ class Prompt {
   final double topp;
   final int maxTokens;
 
-  const Prompt({
-    required this.role,
-    required this.prompt,
-    this.temperature = 0.7,
-    this.topp = 1.0,
-    this.maxTokens = 800,
-  });
+  /// If set, will be used as name for log file for prompt request/response AND value
+  /// for [PromptMetadadataStorage]. Otehrwise promptStartedAt will be used (datetime of prompt creation).
+  /// Must be uniqie to avoid logs/data corruption
+  final String? tag;
+
+  const Prompt(
+      {required this.role,
+      required this.prompt,
+      this.temperature = 0.7,
+      this.topp = 1.0,
+      this.maxTokens = 800,
+      this.tag});
 }
 
 class PromptResult {
