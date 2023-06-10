@@ -19,10 +19,31 @@ CREATE TABLE
   )
 ''';
 
-class PromptMetadataStorageImpl implements PromptMetadadataStorage {
+/// SQLite implemetaion that saves prompt metadata to local file
+/// Check for 'prompts' table, creates one if not present, check for
+/// schema if present, fails if schema is not expected,
+/// Here's how the table looks
+/// ```
+/// CREATE TABLE
+// prompts (
+///   run_started_at DATETIME not null default CURRENT_TIMESTAMP,
+///   prompt_sent_at DATETIME not null,
+///   prompt_updated_at DATETIME not null,
+///   run_tag TEXT null,
+///   tag TEXT null,
+///   status TEXT not null,
+///   prompt_tokens INTEGER NULL,
+///   total_tokens INTEGER NULL,
+///   request TEXT null,
+///   response TEXT null,
+///   retries INTEGER null,
+///   primary key (run_started_at, prompt_sent_at)
+/// )
+///```
+class PromptMetadataSqlite implements PromptMetadadataStorage {
   final String sqliteFile;
 
-  PromptMetadataStorageImpl([this.sqliteFile = 'runs.sqlite']) {
+  PromptMetadataSqlite([this.sqliteFile = 'runs.sqlite']) {
     _checkPromptsTableExists();
   }
 

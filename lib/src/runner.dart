@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:openai_prompt_runner/src/storage.dart';
 
 /// Http requests timeouts (client side)
 Duration httpTimeout = Duration(seconds: 15);
@@ -35,10 +36,15 @@ Uri getAzueOpenAiUri(String endpoint, String deployment) {
 /// tokens (1407|1737), elapsed 0m0s, propmpts complete 20/972, avg sec/prompt 2.0 remaining 31.7m
 /// ```
 /// Additionally each prompt's request and response HTTP body is saved to run's log directoruy (file is named as DateTime of prompt creation)
+///
+/// To augment lagging capability you can use [PromptMetadadataStorage] oimplementation to put
+/// priopmt metadate (e.g. status) to stprage of choice, e.g. to SQLite with shopped implementation
+/// [PromptMetadataSqlite]
 class PromptRunner {
   /// A class for running an OpenAI prompt.
   PromptRunner(
-      {required this.prepareAndSendPrompt,
+      {this.runTag,
+      required this.prepareAndSendPrompt,
       required this.parallelWorkers,
       required this.apiUri,
       required this.apiKeys,
@@ -47,7 +53,8 @@ class PromptRunner {
       required totalIterations,
       required this.startAtIteration,
       this.stopAtIteration,
-      this.logsDirectory = 'logs'})
+      this.logsDirectory = 'logs',
+      this.storage})
       : totalIterations = stopAtIteration ?? totalIterations {
     if (apiKeys.isEmpty) {
       throw 'No API keys provided';
@@ -55,6 +62,7 @@ class PromptRunner {
     _currentIteration = startAtIteration;
   }
 
+  final String? runTag;
   final PrepareAndSendPrompt prepareAndSendPrompt;
   final int parallelWorkers;
   final UnmodifiableListView<String> apiKeys;
@@ -75,6 +83,8 @@ class PromptRunner {
 
   /// Directory where all logs created by prompt runners will be saved
   final String logsDirectory;
+
+  final PromptMetadadataStorage? storage;
 
   Duration get elapsed => _sw.elapsed;
 
@@ -130,7 +140,7 @@ class PromptRunner {
 
     while (retriesLeft > 0) {
       try {
-        var value = await _openAICall(prompt, logFileName);
+        var value = await _openAICall(prompt, promtStartedAt, logFileName);
         _logPrompt(false, logFileName, value.rawResponse);
         if (_runCompleter.isCompleted) {
           return;
@@ -179,7 +189,8 @@ class PromptRunner {
 
   String getAPIKey() => apiKeys[_currentIteration % apiKeys.length];
 
-  Future<PromptResult> _openAICall(Prompt prompt, String logFileName) async {
+  Future<PromptResult> _openAICall(
+      Prompt prompt, DateTime promtStartedAt, String logFileName) async {
     var body = jsonEncode({
       'temperature': prompt.temperature,
       'top_p': prompt.topp,
@@ -191,6 +202,10 @@ class PromptRunner {
     });
 
     _logPrompt(true, logFileName, body);
+    if (storage != null) {
+      storage!.addPromptSent(
+          runStartedAt, promtStartedAt, runTag, prompt.tag, body);
+    }
 
     final response = await http
         .post(
