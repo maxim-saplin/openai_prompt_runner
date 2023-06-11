@@ -66,9 +66,9 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
         final columns = db
             .select('PRAGMA table_info(prompts)')
             .map((e) => e['name'] as String)
-            .toSet();
+            .toList();
 
-        final expectedColumns = {
+        final expectedColumns = [
           'run_started_at',
           'prompt_sent_at',
           'updated_at',
@@ -80,9 +80,22 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
           'request',
           'response',
           'retries'
-        };
+        ];
 
-        if (columns != expectedColumns) {
+        var macthes = true;
+
+        if (expectedColumns.length != columns.length) {
+          macthes = false;
+        } else {
+          for (var i = 0; i < expectedColumns.length; i++) {
+            if (expectedColumns[i] != columns[i]) {
+              macthes = false;
+              break;
+            }
+          }
+        }
+
+        if (!macthes) {
           throw Exception(
               'Prompts table schema does not match expected schema');
         }
