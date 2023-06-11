@@ -94,7 +94,7 @@ class PromptRunner {
   void scheduleMorePromptsInParallel() {
     //try {
     while (_promptsScheduled < parallelWorkers) {
-      if (_currentIteration > totalIterations) {
+      if (_currentIteration >= totalIterations) {
         if (_promptsScheduled > 0) {
           // There're few more futures to be finilized
           return;
@@ -285,7 +285,8 @@ class PromptRunner {
     var secPerPropmt = (elapsed.inSeconds / (completeCounter));
 
     logPrint('$message, tokens (${result.promptTokens}|${result.totalTokens}), '
-        'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, propmpts complete ${completeCounter + startAtIteration + 1}/${totalIterations}, '
+        'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, '
+        'propmpts complete ${completeCounter + startAtIteration + 1}/${totalIterations}, '
         'avg sec/prompt ${secPerPropmt.toStringAsFixed(1)} '
         'remaining ${((totalIterations - startAtIteration - completeCounter) * secPerPropmt / 60).toStringAsFixed(1)}m');
   }
