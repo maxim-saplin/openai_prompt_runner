@@ -132,7 +132,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       int promptTokens, int totalTokens, String? response) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts SET updated_at = ?, status = ?, prompt_tokens = ?, total_tokens = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts SET updated_at = ?, status = ?, prompt_tokens = ?, total_tokens = ?, response = ? WHERE run_started_at = ? AND prompt_sent_at = ?",
           [
             DateTime.now().toIso8601String(),
             'SUCCESS',
@@ -150,7 +150,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? response, int retriesDone) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts SET updated_at = ?, status = ?, response = ?, retries = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts SET updated_at = ?, status = ?, response = ?, retries = ? WHERE run_started_at = ? AND prompt_sent_at = ?",
           [
             DateTime.now().toIso8601String(),
             'ERROR',
