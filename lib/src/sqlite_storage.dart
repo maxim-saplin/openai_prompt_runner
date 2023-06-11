@@ -114,7 +114,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? runTag, String? tag, String? request) {
     _wrapDbCall((db) {
       db.execute(
-          "INSERT INTO prompts (run_started_at, prompt_sent_at, updated_at, runTag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO prompts (run_started_at, prompt_sent_at, updated_at, run_tag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [
             runStartedAt.toIso8601String(),
             promtStartedAt.toIso8601String(),
