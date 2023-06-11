@@ -56,6 +56,10 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       final result = db.select(
           'SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'prompts\'');
 
+      if (result.length > 1) {
+        throw Exception('There\'re multiple \'prompts\' tables');
+      }
+
       if (result.isEmpty) {
         _createPromptsTable();
       } else {
@@ -67,11 +71,11 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
         final expectedColumns = {
           'run_started_at',
           'prompt_sent_at',
-          'prompt_updated_at',
+          'updated_at',
           'run_tag',
           'tag',
           'status',
-          'tokens_sent',
+          'prompt_tokens',
           'total_tokens',
           'request',
           'response',
@@ -97,7 +101,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? runTag, String? tag, String? request) {
     _wrapDbCall((db) {
       db.execute(
-          "INSERT INTO prompts_scoring (run_started_at, prompt_sent_at, updated_at, runTag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO prompts (run_started_at, prompt_sent_at, updated_at, runTag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [
             runStartedAt.toIso8601String(),
             promtStartedAt.toIso8601String(),
@@ -115,7 +119,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       int promptTokens, int totalTokens, String? response) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts_scoring SET updated_at = ?, status = ?, prompt_tokens = ?, total_tokens = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts SET updated_at = ?, status = ?, prompt_tokens = ?, total_tokens = ?, response = ? WHERE run_started_at = ?, prompt_sent_at = ?",
           [
             DateTime.now().toIso8601String(),
             'SUCCESS',
@@ -133,7 +137,7 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
       String? response, int retriesDone) async {
     _wrapDbCall((db) {
       db.execute(
-          "UPDATE prompts_scoring SET updated_at = ?, status = ?, response = ?, retries = ? WHERE run_started_at = ?, prompt_sent_at = ?",
+          "UPDATE prompts SET updated_at = ?, status = ?, response = ?, retries = ? WHERE run_started_at = ?, prompt_sent_at = ?",
           [
             DateTime.now().toIso8601String(),
             'ERROR',
