@@ -286,7 +286,7 @@ class PromptRunner {
 
     logPrint('$message, tokens (${result.promptTokens}|${result.totalTokens}), '
         'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, '
-        'propmpts complete ${completeCounter + startAtIteration + 1}/${totalIterations}, '
+        'propmpts complete ${completeCounter + startAtIteration) }/${totalIterations}, '
         'avg sec/prompt ${secPerPropmt.toStringAsFixed(1)} '
         'remaining ${((totalIterations - startAtIteration - completeCounter) * secPerPropmt / 60).toStringAsFixed(1)}m');
   }
