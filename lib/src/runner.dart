@@ -11,7 +11,7 @@ Duration httpTimeout = Duration(seconds: 15);
 /// Return role and prompt text
 typedef PrepareAndSendPrompt = Prompt Function(
     int iteration,
-    DateTime promtStartedAt,
+    DateTime promptStartedAt,
     Future<PromptResult> promptResult,
     PromptRunner runner);
 
@@ -50,12 +50,10 @@ class PromptRunner {
       required this.apiKeys,
       required this.breakOnError,
       required this.apiErrorRetries,
-      required totalIterations,
+      required this.totalIterations,
       required this.startAtIteration,
-      this.stopAtIteration,
       this.logsDirectory = 'logs',
-      this.storage})
-      : totalIterations = stopAtIteration ?? totalIterations {
+      this.storage}) {
     if (apiKeys.isEmpty) {
       throw 'No API keys provided';
     }
@@ -70,7 +68,6 @@ class PromptRunner {
   final int apiErrorRetries;
   final int totalIterations;
   final int startAtIteration;
-  final int? stopAtIteration;
   int _currentIteration = 0;
   int get currentIteration => _currentIteration;
   var _completeCounter = 0;
@@ -127,25 +124,26 @@ class PromptRunner {
   }
 
   void _doNextPrompt() async {
-    var promtStartedAt = DateTime.now();
+    var promptStartedAt = DateTime.now();
 
     var promptCompleter = Completer<PromptResult>();
     var curIteration = _currentIteration;
     var prompt = prepareAndSendPrompt(
-        curIteration, promtStartedAt, promptCompleter.future, this);
+        curIteration, promptStartedAt, promptCompleter.future, this);
 
     var retriesLeft = apiErrorRetries;
 
-    var logFileName = prompt.tag ?? promtStartedAt.toIso8601String();
+    var logFileName = prompt.tag ?? promptStartedAt.toIso8601String();
 
     while (retriesLeft > 0) {
       try {
-        var value = await _openAICall(prompt, promtStartedAt, logFileName);
+        var value = await _openAICall(prompt, promptStartedAt, logFileName);
         _logPrompt(false, logFileName, value.rawResponse);
         if (storage != null) {
-          storage!.updatePromptSuccess(runStartedAt, promtStartedAt,
+          storage!.updatePromptSuccess(runStartedAt, promptStartedAt,
               value.promptTokens, value.totalTokens, value.rawResponse);
         }
+        retriesLeft = 0;
         if (_runCompleter.isCompleted) {
           return;
         }
@@ -160,8 +158,8 @@ class PromptRunner {
         _errorsHappened = true;
         _logPrompt(false, logFileName, e.toString());
         if (storage != null) {
-          storage!.updatePromptError(runStartedAt, promtStartedAt, e.toString(),
-              apiErrorRetries - retriesLeft);
+          storage!.updatePromptError(runStartedAt, promptStartedAt,
+              e.toString(), apiErrorRetries - retriesLeft);
         }
         if (_runCompleter.isCompleted) {
           return;
@@ -198,7 +196,7 @@ class PromptRunner {
   String getAPIKey() => apiKeys[_currentIteration % apiKeys.length];
 
   Future<PromptResult> _openAICall(
-      Prompt prompt, DateTime promtStartedAt, String logFileName) async {
+      Prompt prompt, DateTime promptStartedAt, String logFileName) async {
     var body = jsonEncode({
       'temperature': prompt.temperature,
       'top_p': prompt.topp,
@@ -212,7 +210,7 @@ class PromptRunner {
     _logPrompt(true, logFileName, body);
     if (storage != null) {
       storage!.addPromptSent(
-          runStartedAt, promtStartedAt, runTag, prompt.tag, body);
+          runStartedAt, promptStartedAt, runTag, prompt.tag, body);
     }
 
     final response = await http
@@ -274,10 +272,10 @@ class PromptRunner {
 
     if (request) {
       File(currentLogFilePath)
-          .writeAsStringSync('|REQUEST|\n', mode: FileMode.append);
+          .writeAsStringSync('//REQUEST\n', mode: FileMode.append);
     } else {
       File(currentLogFilePath)
-          .writeAsStringSync('|RESPONSE|\n', mode: FileMode.append);
+          .writeAsStringSync('\n//RESPONSE\n', mode: FileMode.append);
     }
     File(currentLogFilePath).writeAsStringSync(rawBody, mode: FileMode.append);
   }
@@ -287,7 +285,7 @@ class PromptRunner {
     var secPerPropmt = (elapsed.inSeconds / (completeCounter));
 
     logPrint('$message, tokens (${result.promptTokens}|${result.totalTokens}), '
-        'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, propmpts complete ${completeCounter + startAtIteration + 1}/$totalIterations, '
+        'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, propmpts complete ${completeCounter + startAtIteration + 1}/${totalIterations}, '
         'avg sec/prompt ${secPerPropmt.toStringAsFixed(1)} '
         'remaining ${((totalIterations - startAtIteration - completeCounter) * secPerPropmt / 60).toStringAsFixed(1)}m');
   }

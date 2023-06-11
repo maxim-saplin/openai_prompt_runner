@@ -110,14 +110,21 @@ class PromptMetadataSqlite implements PromptMetadadataStorage {
   }
 
   @override
-  void addPromptSent(DateTime runStartedAt, DateTime promtStartedAt,
+  void addPromptSent(DateTime runStartedAt, DateTime promptStartedAt,
       String? runTag, String? tag, String? request) {
     _wrapDbCall((db) {
+      // final result = db.select(
+      //     'SELECT * FROM prompts WHERE run_started_at=? AND prompt_sent_at=?',
+      //     [runStartedAt.toIso8601String(), promptStartedAt.toIso8601String()]);
+      // if (result.isNotEmpty) {
+      //   return;
+      // }
+
       db.execute(
           "INSERT INTO prompts (run_started_at, prompt_sent_at, updated_at, run_tag, tag, status, request) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [
             runStartedAt.toIso8601String(),
-            promtStartedAt.toIso8601String(),
+            promptStartedAt.toIso8601String(),
             DateTime.now().toIso8601String(),
             runTag,
             tag,
