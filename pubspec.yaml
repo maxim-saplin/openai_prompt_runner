@@ -10,6 +10,7 @@ environment:
 dependencies:
   http:
   sqlite3:
+  path:
 
 dev_dependencies:
   lints: ^2.0.0

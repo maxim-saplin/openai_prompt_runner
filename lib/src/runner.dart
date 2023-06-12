@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:openai_prompt_runner/src/storage.dart';
+import 'package:path/path.dart' as path;
 
 /// Http requests timeouts (client side)
 Duration httpTimeout = Duration(seconds: 15);
@@ -257,8 +258,11 @@ class PromptRunner {
 
   void logPrint(String message) {
     if (_currentLogFilePath.isEmpty) {
-      _currentRunLogDirectory = '$logsDirectory/$runStartedAt';
-      var file = File('$_currentRunLogDirectory/_log');
+
+      var run = runStartedAt.toString().replaceAll(':', '_');
+      
+    _currentRunLogDirectory = path.join(logsDirectory, run);
+      var file = File(path.join(_currentRunLogDirectory,'_log'));
       if (!file.existsSync()) {
         file.createSync(recursive: true);
         _currentLogFilePath = file.path;
@@ -290,7 +294,7 @@ class PromptRunner {
 
     logPrint('$message, tokens (${result.promptTokens}|${result.totalTokens}), '
         'elapsed ${elapsed.inMinutes}m${elapsed.inSeconds % 60}s, '
-        'propmpts complete ${completeCounter + startAtIteration}/${totalIterations}, '
+        'propmpts complete ${completeCounter + startAtIteration}/$totalIterations, '
         'avg sec/prompt ${secPerPropmt.toStringAsFixed(1)} '
         'remaining ${((totalIterations - startAtIteration - completeCounter) * secPerPropmt / 60).toStringAsFixed(1)}m');
   }
