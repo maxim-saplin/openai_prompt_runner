@@ -8,6 +8,8 @@ import 'package:openai_prompt_runner/src/storage.dart';
 /// Http requests timeouts (client side)
 Duration httpTimeout = Duration(seconds: 15);
 
+Duration retrieWait = Duration(seconds: 3);
+
 /// Return role and prompt text
 typedef PrepareAndSendPrompt = Prompt Function(
     int iteration,
@@ -187,7 +189,9 @@ class PromptRunner {
 
           scheduleMorePromptsInParallel();
         } else {
-          logPrint('\n#$curIteration error, retries left $retriesLeft\n$e\n');
+          logPrint(
+              '\n#$curIteration error, retries left $retriesLeft, waiting ${retrieWait.inSeconds}s before next attempt.\n$e\n');
+          await Future.delayed(retrieWait);
         }
       }
     }
