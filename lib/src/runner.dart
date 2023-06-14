@@ -9,7 +9,11 @@ import 'package:path/path.dart' as path;
 /// Http requests timeouts (client side)
 Duration httpTimeout = Duration(seconds: 15);
 
+/// When an error happens do not issue a next request until the given period passes
 Duration retrieWait = Duration(seconds: 3);
+
+/// Flood protection to avoid API errors, do not issue requests one by one with microseconds between them, add some delay
+Duration promptSchedulingDelay = Duration(milliseconds: 50);
 
 /// Return role and prompt text
 typedef PrepareAndSendPrompt = Prompt Function(
@@ -127,6 +131,7 @@ class PromptRunner {
   }
 
   void _doNextPrompt() async {
+    await Future.delayed(promptSchedulingDelay);
     var promptStartedAt = DateTime.now();
 
     var promptCompleter = Completer<PromptResult>();
@@ -258,11 +263,10 @@ class PromptRunner {
 
   void logPrint(String message) {
     if (_currentLogFilePath.isEmpty) {
-
       var run = runStartedAt.toString().replaceAll(':', '_');
-      
-    _currentRunLogDirectory = path.join(logsDirectory, run);
-      var file = File(path.join(_currentRunLogDirectory,'_log'));
+
+      _currentRunLogDirectory = path.join(logsDirectory, run);
+      var file = File(path.join(_currentRunLogDirectory, '_log'));
       if (!file.existsSync()) {
         file.createSync(recursive: true);
         _currentLogFilePath = file.path;
