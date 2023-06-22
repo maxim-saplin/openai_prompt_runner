@@ -131,11 +131,10 @@ class PromptRunner {
   }
 
   void _doNextPrompt() async {
-    await Future.delayed(promptSchedulingDelay);
     var promptStartedAt = DateTime.now();
-
     var promptCompleter = Completer<PromptResult>();
     var curIteration = _currentIteration;
+    await Future.delayed(promptSchedulingDelay);
     var prompt = prepareAndSendPrompt(
         curIteration, promptStartedAt, promptCompleter.future, this);
 
