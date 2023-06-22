@@ -1,6 +1,6 @@
 name: openai_prompt_runner
 description: Minimal harness for automated mass executions of prompts against OpenAI or Azure endpoints
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/maxim-saplin/openai_prompt_runner
 
 environment:
